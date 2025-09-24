@@ -8,4 +8,4 @@ source ~/.bashrc
 
 conda activate teste
 
-python -u comp.py
+python -u $1
