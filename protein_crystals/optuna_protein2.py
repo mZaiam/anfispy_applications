@@ -20,28 +20,19 @@ from ANFISpy import HamacherAND, MinAND, FrankAND, ProdAND, LukasiewiczAND
 SEED = 42
 torch.manual_seed(SEED)
 
-df = pd.read_excel('protein_data.xlsx')
+df = pd.read_excel('protein_data2.xlsx')
 df = df.dropna()
 
-FEATURES = ["Concentração de proteína (em mg/mL)", "Concentração de sal (em mg/mL)"]
-TARGET = ["Definicação do cristal"]
+FEATURES = ["Lisozima (mg/mL)", "Cloreto de sódio (M)"]
+TARGET = ["Gota 1", "Gota 2", "Gota 3"]
 
 x = df[FEATURES].values.astype('float16')
 y = df[TARGET].values.astype('float16')
-y = np.clip(np.rint(y), 0, 2)
+y = stats.mode(y, axis=1)[0]
 
-unique_x, inverse_indices = np.unique(x, axis=0, return_inverse=True)
-
-most_frequent_y = []
-for idx in range(len(unique_x)):
-    group_y = y[inverse_indices == idx]
-    most_common = stats.mode(group_y, keepdims=False).mode
-    most_frequent_y.append(most_common)
-
-most_frequent_y = np.array(most_frequent_y).astype(int).squeeze()
-
-x = torch.tensor(unique_x, dtype=torch.float32)
-y = torch.tensor(most_frequent_y, dtype=torch.long)
+x = torch.tensor(x, dtype=torch.float32)
+y = torch.tensor(y, dtype=torch.long)
+y[-7] = 1
 
 x_kfold, x_test, y_kfold, y_test = train_test_split(
     x, y,
@@ -93,7 +84,7 @@ def objective_anfis(trial):
             },
             'output': {
                 'var_names': None,
-                'n_classes': 3,
+                'n_classes': 2,
             },
         }
 
@@ -152,9 +143,9 @@ def objective_anfis(trial):
     return mean_acc
 
 study_anfis = optuna.create_study(direction='maximize')
-study_anfis.optimize(objective_anfis, n_trials=500) 
+study_anfis.optimize(objective_anfis, n_trials=500)
 anfis_results_df = study_anfis.trials_dataframe()
-anfis_results_df.to_csv('anfis_optuna.csv', index=False)
+anfis_results_df.to_csv('anfis_optuna2.csv', index=False)
 
 # Optuna MLP
 class MLP(nn.Module):
@@ -207,7 +198,7 @@ def objective_mlp(trial):
         val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
         input_dim = 2
-        output_dim = 3
+        output_dim = 2
 
         match params['activation']:
             case 'relu':
@@ -260,6 +251,6 @@ def objective_mlp(trial):
     return np.mean(accuracies)
 
 study_mlp = optuna.create_study(direction='maximize')
-study_mlp.optimize(objective_mlp, n_trials=500) 
+study_mlp.optimize(objective_mlp, n_trials=500)
 mlp_results_df = study_mlp.trials_dataframe()
-mlp_results_df.to_csv('mlp_optuna.csv', index=False)
+mlp_results_df.to_csv('mlp_optuna2.csv', index=False)
